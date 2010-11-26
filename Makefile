@@ -15,6 +15,6 @@ picfavr.hex: picfavr
 picfavr: picfavr.o
 
 
-upload:
+upload: picfavr.hex
 	../emu/teensy-usb/teensy_loader_cli/teensy_loader_cli -mmcu=atmega32u4 picfavr.hex
 

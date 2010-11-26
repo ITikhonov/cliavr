@@ -221,7 +221,7 @@ stall:
 	ret
 
 setupack:
-	ldi	r16,~(1<<RXSTPI)
+	ldi	r16,~((1<<RXSTPI)|(1<<TXINI)|(1<RXOUTI))
 	sts	UEINTX,r16
 	ret
 
@@ -270,8 +270,6 @@ writeblock:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 pktsetup:
-	LIGHT
-
 	lds	r16,UEDATX ; bmRequestType
 	lds	r16,UEDATX ; bRequest
 
@@ -389,7 +387,7 @@ confdescr:
 
 devdescr:
 	ldi	r16,18
-	rcall	pktlen
+	;rcall	pktlen
 
 	ldi	r30,lo8(devdescr_data)
 	ldi	r31,hi8(devdescr_data)
@@ -414,6 +412,7 @@ Usetaddress:
 	rcall	waitin
 	lds	r16,UDADDR
 	sbr	r16,0x80
+	sts	UDADDR,r16
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
