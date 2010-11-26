@@ -1,3 +1,6 @@
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Constants
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 .equ	SREG,0x3f
 .equ	SPL,0x3d
@@ -24,8 +27,14 @@
 .equ	GET_CONFIGURATION,0x08
 .equ	SET_CONFIGURATION,0x09
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Interrupt vectors
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 Ireset:	rjmp	start
 	nop
+	reti
+	reti
 	reti
 	reti
 	reti
@@ -66,8 +75,10 @@ Ireset:	rjmp	start
 	reti
 	reti
 	reti
-	reti
-	reti
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Hardware Setup
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 start:
 clc16mhz:
@@ -108,6 +119,10 @@ usbintrs:
 
 wait:	rjmp wait
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Partial reset and main loop
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 go:
 	eor     r16,r16
 	out     SREG,r16
@@ -116,7 +131,6 @@ go:
 	ldi     r16,0x0A
 	out     SPH,r16
 
-
 ep0conf:
 	eor	r16,r16
 	sts	UENUM,r16
@@ -124,7 +138,7 @@ ep0conf:
 	sts	UECONX,r16
 	eor	r16,r16
 	sts	UECFG0X,r16
-	ldi	r16,0b10
+	ldi	r16,0b0110010
 	sts	UECFG1X,r16
 	eor	r16,r16
 	sts	UEIENX,r16
@@ -132,10 +146,62 @@ ep0conf:
 waitrcv:
 	lds	r16,UEINTX
 	sbrc	r16,RXSTPI
-	rcall	control
+	rcall	pktsetup
 	rjmp	waitrcv
 
-control:
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Commons
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+stall:
+	ldi	r16,(1<<STALLRQ)|(1<<EPEN)
+	sts	UECONX,r16
+	ret
+
+setupack:
+	ldi	r16,~(1<<RXSTPI)
+	sts	UEINTX,r16
+	ret
+
+sendin:
+	ldi	r16,~(1<<TXINI)
+	sts	UEINTX,r16
+	ret
+
+waitin:
+	lds	r16,UEINTX
+	sbrs	r16,TXINI
+	rjmp	waitin
+	ret
+
+; r16 - len have, r17:r18 - len ordered
+; return r16 - min(r16,r17:r18)
+pktlen:
+	cpi r18,0
+	brne pktlen.r16
+	cp r16,r17
+	brlo pktlen.r16
+	mov r16,r17
+	ret
+
+pktlen.r16:
+	ret
+
+
+waitout:
+	lds	r16,UEINTX
+	sbrs	r16,RXOUTI
+	rjmp	waitout
+	ldi	r16,~(1<<RXOUTI)
+	sts	UEINTX,r16
+	ret
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; SETUP
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+pktsetup:
 	lds	r16,UEDATX ; bmRequestType
 	lds	r16,UEDATX ; bRequest
 
@@ -147,24 +213,10 @@ control:
 	rcall	stall
 	ret
 
-stall:
-	ldi	r16,(1<<STALLRQ)|(1<<EPEN)
-	sts	UECONX,r16
-	ret
 
-setupack:
-	ldi	r16,~(1<<RXSTPI)
-	sts	UEINTX,r16
-	ldi	r16,~(1<<TXINI)
-	sts	UEINTX,r16
-	ret
-
-
-waitin:
-	lds	r16,UEINTX
-	sbrs	r16,TXINI
-	rjmp	waitin
-	ret
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; GET_DESCRIPTOR
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 Ugetdescriptor:
 	lds	r16,UEDATX ; wValue (lo)
@@ -187,9 +239,48 @@ Ugetdescriptor:
 	rcall	stall
 	ret
 
-devdescr
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Send device descriptor
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+devdescr:
+	ldi	r16,18
+	rcall	pktlen
+
+	ldi	r30,lo8(devdescr_data)
+	ldi	r31,hi8(devdescr_data)
+
+devdescr.send:
+	lpm	r17,Z+
+	sts	UEDATX,r17
+	dec	r16
+	brne	devdescr.send
+
+	rcall	sendin
+	rcall	waitout
+	ret
 	
 
+devdescr_data:
+.byte        18			; bLength
+.byte        1			; bDescriptorType
+.byte        0x00, 0x02		; bcdUSB
+.byte        0			; bDeviceClass
+.byte        0			; bDeviceSubClass
+.byte        0			; bDeviceProtocol
+.byte        32			; bMaxPacketSize0
+.byte        0xC0,0x16		; idVendor
+.byte        0x80,0x04		; idProduct
+.byte        0x00, 0x01		; bcdDevice
+.byte        0			; iManufacturer
+.byte        0			; iProduct
+.byte        0			; iSerialNumber
+.byte        1			; bNumConfigurations
+	
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; GET_STATUS
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 
 Ugetstatus:
@@ -199,18 +290,14 @@ Ugetstatus:
 	clr	r16
 	sts	UEDATX,r16
 	sts	UEDATX,r16
-	ldi	r16,~(1<<TXINI)
-	sts	UEINTX,r16
-
-Ugetstatus.out:
-	lds	r16,UEINTX
-	sbrs	r16,RXOUTI
-	rjmp	Ugetstatus.out
-	ldi	r16,~(1<<RXOUTI)
-	sts	UEINTX,r16
+	rcall	sendin
+	rcall	waitout
 
 	ret
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Interrupt (usb reset)
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 Iusbgen:
 	push	r16
@@ -227,7 +314,6 @@ Iusbgen:
 	reti
 
 usbreset:
-
 ;	we really reset everything
 	sei
 	rjmp	go
