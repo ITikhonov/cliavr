@@ -310,7 +310,7 @@ Ureadmem:
 	rcall	setupack
 	rcall	waitin
 
-	sts	UEDATX,r16
+	sts	UEDATX,r0
 	rcall	sendin
 	rcall	waitout
 	pop	r0
@@ -322,6 +322,11 @@ Uwritemem:
 	lds	r31,UEDATX	; wValue (hi)
 	lds	r0,UEDATX	; wIndex (lo)
 	st	Z,r0
+
+	rcall	setupack
+	rcall	sendin
+	rcall	waitin
+
 	pop	r0
 	ret
 	
