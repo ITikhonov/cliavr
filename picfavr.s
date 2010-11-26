@@ -13,6 +13,7 @@
 .equ	UEIENX,0x00f0
 .equ	UEINTX,0x00e8
 .equ	UEDATX,0x00f1
+.equ	UDADDR,0x00e1
 
 .equ	STALLRQ,5
 .equ	EPEN,0
@@ -75,6 +76,49 @@ Ireset:	rjmp	start
 	reti
 	reti
 	reti
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Data
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+devdescr_data:
+	.byte        18			; bLength
+	.byte        1			; bDescriptorType
+	.byte        0x00, 0x02		; bcdUSB
+	.byte        0			; bDeviceClass
+	.byte        0			; bDeviceSubClass
+	.byte        0			; bDeviceProtocol
+	.byte        32			; bMaxPacketSize0
+	.byte        0xC0,0x16		; idVendor
+	.byte        0x80,0x04		; idProduct
+	.byte        0x00, 0x01		; bcdDevice
+	.byte        0			; iManufacturer
+	.byte        0			; iProduct
+	.byte        0			; iSerialNumber
+	.byte        1			; bNumConfigurations
+
+
+confdescr_data:
+	.byte	9	; bLength
+	.byte	2	; bDescriptorType
+	.byte	18,0	; wTotalLength
+	.byte	1	; bNumInterfaces
+	.byte	1	; bConfigurationValue
+	.byte	0	; iConfiguration
+	.byte	0b10000000	; bmAttributes
+	.byte	50	; bMaxPower
+interfacedesc.data:
+	.byte 9		; bLength
+	.byte 4		; bDescriptorType
+	.byte 0		; bInterfaceNumber
+	.byte 0		; bAlternateSetting
+	.byte 0		; bNumEndpoints
+	.byte 0xff	; bInterfaceClass
+	.byte 0x00	; bInterfaceSubClass
+	.byte 0x00	; bInterfaceProtocol
+	.byte 0		; iInterface
+
+.align 2
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Hardware Setup
@@ -196,6 +240,12 @@ waitout:
 	sts	UEINTX,r16
 	ret
 
+writeblock:
+	lpm	r17,Z+
+	sts	UEDATX,r17
+	dec	r16
+	brne	writeblock
+	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; SETUP
@@ -209,6 +259,8 @@ pktsetup:
 	breq	Ugetstatus
 	cpi	r16,GET_DESCRIPTOR
 	breq	Ugetdescriptor
+	cpi	r16,SET_ADDRESS
+	breq	Usetaddress
 
 	rcall	stall
 	ret
@@ -219,8 +271,8 @@ pktsetup:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 Ugetdescriptor:
-	lds	r16,UEDATX ; wValue (lo)
-	lds	r17,UEDATX ; wValue (hi), discard
+	lds	r16,UEDATX ; wValue (lo), discard
+	lds	r16,UEDATX ; wValue (hi)
 	
 	lds	r17,UEDATX ; wIndex (lo), discard
 	lds	r17,UEDATX ; wIndex (hi), discard
@@ -228,16 +280,37 @@ Ugetdescriptor:
 	lds	r17,UEDATX ; wLength (lo)
 	lds	r18,UEDATX ; wLength (hi)
 
-	mov	r16,r0
+	mov	r0,r16
 	rcall	setupack
 	rcall	waitin
-	mov	r0,r16
+	mov	r16,r0
 
 	cpi	r16,0x01
 	breq	devdescr
+	cpi	r16,0x02
+	breq	confdescr
 
 	rcall	stall
 	ret
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Send device descriptor
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+confdescr:
+	ldi	r16,18
+	rcall	pktlen
+
+	ldi	r30,lo8(confdescr_data)
+	ldi	r31,hi8(confdescr_data)
+
+	rcall	writeblock
+	rcall	sendin
+	rcall	waitout
+	ret
+	
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Send device descriptor
@@ -250,33 +323,27 @@ devdescr:
 	ldi	r30,lo8(devdescr_data)
 	ldi	r31,hi8(devdescr_data)
 
-devdescr.send:
-	lpm	r17,Z+
-	sts	UEDATX,r17
-	dec	r16
-	brne	devdescr.send
-
+	rcall	writeblock
 	rcall	sendin
 	rcall	waitout
 	ret
 	
 
-devdescr_data:
-.byte        18			; bLength
-.byte        1			; bDescriptorType
-.byte        0x00, 0x02		; bcdUSB
-.byte        0			; bDeviceClass
-.byte        0			; bDeviceSubClass
-.byte        0			; bDeviceProtocol
-.byte        32			; bMaxPacketSize0
-.byte        0xC0,0x16		; idVendor
-.byte        0x80,0x04		; idProduct
-.byte        0x00, 0x01		; bcdDevice
-.byte        0			; iManufacturer
-.byte        0			; iProduct
-.byte        0			; iSerialNumber
-.byte        1			; bNumConfigurations
-	
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; SET_ADDRESS
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+Usetaddress:
+	lds	r16,UEDATX ; wValue (lo)
+	sts	UDADDR,r16
+	andi	r16,0x7f
+	rcall	setupack
+	rcall	sendin
+	rcall	waitin
+	lds	r16,UDADDR
+	sbr	r16,0x80
+	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; GET_STATUS
