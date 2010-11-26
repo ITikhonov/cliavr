@@ -2,10 +2,20 @@
 ;; Constants
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+
+.macro LIGHT
+	sbi     0x0b, 6
+.endm
+
 .equ	SREG,0x3f
 .equ	SPL,0x3d
 .equ	SPH,0x3e
 
+.equ	CLKPR,0x0061
+
+.equ	UDCON,0x00e0
+.equ	UHWCON,0x00d7
+.equ	USBCON,0x00d8
 .equ	UENUM,0x00e9
 .equ	UECONX,0x00eb 
 .equ	UECFG0X,0x00ec
@@ -13,7 +23,9 @@
 .equ	UEIENX,0x00f0
 .equ	UEINTX,0x00e8
 .equ	UEDATX,0x00f1
-.equ	UDADDR,0x00e1
+.equ	UDADDR,0x00e3
+.equ	UDIEN,0x00e2
+.equ	UDINT,0x00e1
 
 .equ	STALLRQ,5
 .equ	EPEN,0
@@ -125,19 +137,20 @@ interfacedesc.data:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 start:
+	sbi     0x0a, 6
 clc16mhz:
 	ldi     r16,0x80
-	eor     r0,r0
-	sts     0x0061,r16
-	sts     0x0061,r0
+	sts     CLKPR,r16
+	clr     r0
+	sts     CLKPR,r0
 
 usbpad:
 	ldi     r16,0x01
-	sts     0x00D7,r16
+	sts     UHWCON,r16
 
 usbenable:
-	ldi     r16,0xA0
-	sts     0x00D8,r16
+	ldi     r16,0b10100000
+	sts     USBCON,r16
 
 usbpll:
 	ldi	r16,0b10010
@@ -149,26 +162,29 @@ waitpll:
 	rjmp	waitpll
 
 usbrun:
-	ldi     r16,0b10000000
-	sts     0x00D8,r16
-
-usbconf:
-	eor	r0,r0
-	sts	0x00E0,r0
+	ldi     r16,0b10010000
+	sts     USBCON,r16
 
 usbintrs:
 	ldi     r16,0b1000
-	sts     0x00E2,r16
+	sts     UDIEN,r16
 	sei
 
-wait:	rjmp wait
+usbconf:
+	clr	r0
+	sts	UDCON,r0
+
+wait:
+	rjmp wait
+
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Partial reset and main loop
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 go:
-	eor     r16,r16
+	clr     r16
 	out     SREG,r16
 	ldi     r16,0xFF
 	out     SPL,r16
@@ -176,7 +192,7 @@ go:
 	out     SPH,r16
 
 ep0conf:
-	eor	r16,r16
+	clr	r16
 	sts	UENUM,r16
 	ldi	r16,0b1
 	sts	UECONX,r16
@@ -186,6 +202,8 @@ ep0conf:
 	sts	UECFG1X,r16
 	eor	r16,r16
 	sts	UEIENX,r16
+
+	sei
 
 waitrcv:
 	lds	r16,UEINTX
@@ -252,19 +270,72 @@ writeblock:
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 pktsetup:
+	LIGHT
+
 	lds	r16,UEDATX ; bmRequestType
 	lds	r16,UEDATX ; bRequest
 
 	cpi	r16,GET_STATUS
-	breq	Ugetstatus
+	breq	Ugetstatus_
 	cpi	r16,GET_DESCRIPTOR
-	breq	Ugetdescriptor
+	breq	Ugetdescriptor_
 	cpi	r16,SET_ADDRESS
-	breq	Usetaddress
+	breq	Usetaddress_
+	cpi	r16,SET_CONFIGURATION
+	breq	Usetconfiguration_
+	cpi	r16,0xf0
+	breq	Ureadmem_
+	cpi	r16,0xf1
+	breq	Uwritemem_
 
 	rcall	stall
 	ret
 
+Ugetstatus_: rjmp Ugetstatus
+Ugetdescriptor_: rjmp Ugetdescriptor
+Usetaddress_: rjmp Usetaddress
+Usetconfiguration_: rjmp Usetconfiguration
+Ureadmem_: rjmp Ureadmem
+Uwritemem_: rjmp Uwritemem
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; MEM
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+Ureadmem:
+	push	r0
+	lds	r30,UEDATX ; wValue (lo)
+	lds	r31,UEDATX ; wValue (hi)
+	ld	r0,Z
+
+	rcall	setupack
+	rcall	waitin
+
+	sts	UEDATX,r16
+	rcall	sendin
+	rcall	waitout
+	pop	r0
+	ret
+
+Uwritemem:
+	push	r0
+	lds	r30,UEDATX	; wValue (lo)
+	lds	r31,UEDATX	; wValue (hi)
+	lds	r0,UEDATX	; wIndex (lo)
+	st	Z,r0
+	pop	r0
+	ret
+	
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; SET_CONFIGURATION
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+Usetconfiguration:
+	rcall	setupack
+	rcall	sendin
+	rcall	waitin
+	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; GET_DESCRIPTOR
@@ -280,10 +351,10 @@ Ugetdescriptor:
 	lds	r17,UEDATX ; wLength (lo)
 	lds	r18,UEDATX ; wLength (hi)
 
-	mov	r0,r16
+	push	r16
 	rcall	setupack
 	rcall	waitin
-	mov	r16,r0
+	pop	r16
 
 	cpi	r16,0x01
 	breq	devdescr
@@ -371,7 +442,7 @@ Iusbgen:
 	in      r16, 0x3f
 	push	r16
 
-	lds     r16,0x00E1
+	lds     r16,UDINT
 	sbrc	r16,3
 	rjmp	usbreset
 
@@ -381,7 +452,8 @@ Iusbgen:
 	reti
 
 usbreset:
+	clr	r16
+	sts	UDINT,r16
 ;	we really reset everything
-	sei
 	rjmp	go
 
