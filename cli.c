@@ -78,7 +78,7 @@ int teensy_writemem(uint16_t addr, uint8_t v)
 	if (!libusb_teensy_handle) return 0;
 	r = usb_control_msg(libusb_teensy_handle, 0b01000001, 0xf1, addr, v, 0, 0, 1000);
 	if (r < 0) return 0;
-	printf("%04x: %02hhx\n",addr,buf,v);
+	//printf("write %04x: %02hhx\n",addr,buf,v);
 	return 1;
 }
 
@@ -90,7 +90,7 @@ int teensy_readmem(uint16_t addr)
 	if (!libusb_teensy_handle) return 0;
 	r = usb_control_msg(libusb_teensy_handle, 0b11000001, 0xf0, addr, 0, &buf, 1, 1000);
 	if (r < 0) return 0;
-	printf("%04x: %02hhx\n",addr,buf,r);
+	printf("%02hhx\n",buf);
 	return 1;
 }
 
