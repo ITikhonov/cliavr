@@ -4,19 +4,19 @@ AS=avr-as
 LDFLAGS=-mmcu=atmega32u4 -nostdlib
 ASFLAGS=-mmcu=atmega32u4
 
-all: picfavr.bin picfavr.hex cli
+all: cliavr.bin cliavr.hex cli
 
-picfavr.bin: picfavr
+cliavr.bin: cliavr
 	avr-objcopy -O binary $< $@
 
-picfavr.hex: picfavr
+cliavr.hex: cliavr
 	avr-objcopy -O ihex $< $@
 
-picfavr: picfavr.o
+cliavr: cliavr.o
 
 
-upload: picfavr.hex
-	../emu/teensy-usb/teensy_loader_cli/teensy_loader_cli -mmcu=atmega32u4 picfavr.hex
+upload: cliavr.hex
+	../emu/teensy-usb/teensy_loader_cli/teensy_loader_cli -mmcu=atmega32u4 cliavr.hex
 
 libcliavr.so: libcliavr.c
 	gcc -c -fPIC libcliavr.c -o libcliavr.o
