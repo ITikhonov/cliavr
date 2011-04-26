@@ -1,11 +1,3 @@
-# ADCSRA = (1<<ADEN) | ADC_PRESCALER;             // enable ADC
-# ADCSRB = (1<<ADHSM) | (mux & 0x20);             // high speed mode
-# ADMUX = aref | (mux & 0x1F);                    // configure mux input
-# ADCSRA = (1<<ADEN) | ADC_PRESCALER | (1<<ADSC); // start the conversion
-# while (ADCSRA & (1<<ADSC)) ;                    // wait for result
-# low = ADCL;                                     // must read LSB first
-# return (ADCH << 8) | low;                       // must read MSB only once!
-
 from os import system,popen
 
 def w(p,v):
