@@ -1,3 +1,4 @@
+#include <stdint.h>
 
 int teensy_open(void);
 void teensy_close(void);
