@@ -284,6 +284,10 @@ pktsetup:
 	breq	Ureadmem_
 	cpi	r16,0xf1
 	breq	Uwritemem_
+	cpi	r16,0xf2
+	breq	Usetbits_
+	cpi	r16,0xf3
+	breq	Uclrbits_
 
 	rcall	stall
 	ret
@@ -294,6 +298,8 @@ Usetaddress_: rjmp Usetaddress
 Usetconfiguration_: rjmp Usetconfiguration
 Ureadmem_: rjmp Ureadmem
 Uwritemem_: rjmp Uwritemem
+Usetbits_: rjmp Usetbits
+Uclrbits_: rjmp Uclrbits
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -328,6 +334,48 @@ Uwritemem:
 
 	pop	r0
 	ret
+
+Usetbits:
+	push	r0
+	push	r1
+	lds	r30,UEDATX	; wValue (lo)
+	lds	r31,UEDATX	; wValue (hi)
+	lds	r0,UEDATX	; wIndex (lo)
+	ld	r1,Z
+	or	r1,r0
+	st	Z,r1
+
+	rcall	setupack
+	rcall	sendin
+	rcall	waitin
+
+	pop	r1
+	pop	r0
+	ret
+
+Uclrbits:
+	push	r0
+	push	r1
+	lds	r30,UEDATX	; wValue (lo)
+	lds	r31,UEDATX	; wValue (hi)
+	lds	r0,UEDATX	; wIndex (lo)
+	ld	r1,Z
+	com	r0
+	and	r1,r0
+	st	Z,r1
+
+	rcall	setupack
+	rcall	sendin
+	rcall	waitin
+
+	pop	r1
+	pop	r0
+	ret
+
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; SET_CONFIGURATION
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 	
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; SET_CONFIGURATION

@@ -17,8 +17,17 @@ int main(int argc, char *argv[]) {
 		uint16_t a;
 		uint8_t v;
 		sscanf(argv[1],"%hx",&a);
-		sscanf(argv[2],"%hhx",&v);
-		teensy_writemem(a,v);
+		if(argv[2][0]=='+') {
+			sscanf(argv[2]+1,"%hhx",&v);
+			teensy_setbits(a,v);
+		} else if(argv[2][0]=='-') {
+			sscanf(argv[2]+1,"%hhx",&v);
+			teensy_clrbits(a,v);
+		} else {
+			sscanf(argv[2],"%hhx",&v);
+			teensy_writemem(a,v);
+		}
+
 	} else {
 		uint16_t a;
 		sscanf(argv[1],"%hx",&a);

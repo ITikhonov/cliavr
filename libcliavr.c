@@ -81,6 +81,28 @@ int teensy_writemem(uint16_t addr, uint8_t v)
 	return 0;
 }
 
+int teensy_setbits(uint16_t addr, uint8_t v)
+{
+	int r;
+	char buf;
+
+	if (!libusb_teensy_handle) return 0;
+	r = usb_control_msg(libusb_teensy_handle, 0b01000001, 0xf2, addr, v, 0, 0, 1000);
+	if (r < 0) return -1;
+	return 0;
+}
+
+int teensy_clrbits(uint16_t addr, uint8_t v)
+{
+	int r;
+	char buf;
+
+	if (!libusb_teensy_handle) return 0;
+	r = usb_control_msg(libusb_teensy_handle, 0b01000001, 0xf3, addr, v, 0, 0, 1000);
+	if (r < 0) return -1;
+	return 0;
+}
+
 int teensy_readmem(uint16_t addr)
 {
 	int r;
@@ -91,5 +113,4 @@ int teensy_readmem(uint16_t addr)
 	if (r < 0) return -1;
 	return buf;
 }
-
 

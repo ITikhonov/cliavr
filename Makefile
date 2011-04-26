@@ -23,6 +23,6 @@ libcliavr.so: libcliavr.c
 	gcc -shared -Wl,-soname,libcliavr.so -o libcliavr.so libcliavr.o -lusb
 
 
-cli: cli.c libcliavr.so
-	gcc -o cli cli.c -L. -lcliavr
+cli: cli.c libcliavr.o
+	gcc -o cli cli.c libcliavr.o -lusb
 
