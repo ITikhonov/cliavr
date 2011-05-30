@@ -7,8 +7,37 @@
 
 #include "libcliavr.h"
 
+void icpush(uint8_t a, uint8_t v) {
+	static uint16_t h=0;
+	static uint32_t w=0; 
+
+	if(a&1) { // high byte
+		h|=v<<8;
+		if(h==0) {
+			w++;
+		} else {
+			printf("%02hhx: %x\n",a,(w<<16)|h);
+		}
+	} else { // low byte
+		h=v;
+	}
+}
+
 void icwatch() {
+	uint8_t nextread=0x0;
 	for(;;) {
+		char buf[32];
+		uint8_t tail=teensy_readmem(0x1a);
+		teensy_readblock(nextread|0x100,buf);
+
+		int i;
+		for(i=0;i<32;i++) {
+			if(nextread==tail) break;
+			//printf("%02hhx (%02hhx): %02hhx\n",nextread,tail,buf[i]);
+
+			icpush(nextread,buf[i]);
+			nextread++;
+		}
 	}
 }
 
