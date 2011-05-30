@@ -28,10 +28,16 @@ int main(int argc, char *argv[]) {
 			teensy_writemem(a,v);
 		}
 
-	} else {
+	} else if (argc==2) {
 		uint16_t a;
 		sscanf(argv[1],"%hx",&a);
 		printf("%02x\n",teensy_readmem(a));
+	} else {
+
+		printf("read memory: %s 4e\n",argv[0]);
+		printf("write memory: %s 4e ff\n",argv[0]);
+		printf("clear bits: %s 4e -ff\n",argv[0]);
+		printf("set bits: %s 4e +ff\n",argv[0]);
 	}
 }
 
