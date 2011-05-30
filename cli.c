@@ -13,10 +13,12 @@ void icpush(uint8_t a, uint8_t v) {
 
 	if(a&1) { // high byte
 		h|=v<<8;
-		if(h==0) {
+		if(h==0 || h==1) { // ignore lowest bit
+			if(w==0) printf("%8s %x\n","----",h&1);
 			w++;
 		} else {
-			printf("%02hhx: %x\n",a,(w<<16)|h);
+			printf("%8x %x\n",(w<<15)|(h>>1),h&1);
+			w=0;
 		}
 	} else { // low byte
 		h=v;

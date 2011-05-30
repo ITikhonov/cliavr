@@ -625,21 +625,35 @@ Iicp:
 	push	r16
 	in	r16,SREG
 	push	r16
+	push	r17
 
 	lds	r16,ICR3L
+
+	sbic	0x6,7	; store pin 7 of port c into lowest bit of lowest byte
+	sbr	r16,0
+	sbis	0x6,7
+	cbr	r16,0
+
 	st	X,r16
 	inc	r26
 	lds	r16,ICR3H
 	st	X,r16
 	inc	r26
 
+	lds	r16,TCCR3B
+	ldi     r17,0b01000000
+	eor	r16,r17
+	sts	TCCR3B,r16
+
 	clr	r16
 	sts	TIFR3,r16
 
+	pop	r17
 	pop	r16
 	out	SREG,r16
 	pop	r16
 	reti
+
 
 Iover:
 	push	r16
@@ -647,8 +661,12 @@ Iover:
 	push	r16
 
 	clr	r16
+	sbic	0x6,7	; store pin 7 of port c into lowest bit of lowest byte
+	inc	r16
 	st	X,r16
 	inc	r26
+
+	clr	r16
 	st	X,r16
 	inc	r26
 	pop	r16
