@@ -29,15 +29,17 @@ void icwatch() {
 		char buf[32];
 		uint8_t tail=teensy_readmem(0x1a);
 		teensy_readblock(nextread|0x100,buf);
+		//fprintf(stderr,"----\n");
 
 		int i;
 		for(i=0;i<32;i++) {
 			if(nextread==tail) break;
-			//printf("%02hhx (%02hhx): %02hhx\n",nextread,tail,buf[i]);
+			//fprintf(stderr,"%02hhx (%02hhx): %02hhx\n",nextread,tail,buf[i]);
 
 			icpush(nextread,buf[i]);
-			nextread++;
+			if(nextread++==0xff) break;
 		}
+		usleep(20000);
 	}
 }
 

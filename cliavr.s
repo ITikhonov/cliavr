@@ -570,7 +570,7 @@ Ugetstatus:
 
 Iusbgen:
 	push	r16
-	in      r16, 0x3f
+	in      r16, SREG
 	push	r16
 
 	lds     r16,UDINT
@@ -578,7 +578,7 @@ Iusbgen:
 	rjmp	usbreset
 
 	pop	r16
-	out     0x3f, r16
+	out     SREG, r16
 	pop	r16
 	reti
 
@@ -619,10 +619,11 @@ icinit:
 	ldi	r16,0b00100001
 	sts	TIMSK3,r16
 
-	clr	r20
 	ret
 
 Iicp:
+	push	r16
+	in	r16,SREG
 	push	r16
 
 	lds	r16,ICR3L
@@ -636,15 +637,22 @@ Iicp:
 	sts	TIFR3,r16
 
 	pop	r16
+	out	SREG,r16
+	pop	r16
 	reti
 
 Iover:
 	push	r16
+	in	r16,SREG
+	push	r16
+
 	clr	r16
 	st	X,r16
 	inc	r26
 	st	X,r16
 	inc	r26
+	pop	r16
+	out	SREG,r16
 	pop	r16
 	reti
 
