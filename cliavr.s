@@ -291,6 +291,8 @@ pktsetup:
 	breq	Usetbits_
 	cpi	r16,0xf3
 	breq	Uclrbits_
+	cpi	r16,0xf4
+	breq	Ublockread_
 
 	rcall	stall
 	ret
@@ -303,6 +305,7 @@ Ureadmem_: rjmp Ureadmem
 Uwritemem_: rjmp Uwritemem
 Usetbits_: rjmp Usetbits
 Uclrbits_: rjmp Uclrbits
+Ublockread_: rjmp Ublockread
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -375,6 +378,39 @@ Uclrbits:
 	pop	r0
 	ret
 
+Ublockread:
+	lds	r30,UEDATX	; wValue (lo)
+	lds	r31,UEDATX	; wValue (hi)
+	rcall	setupack
+	rcall	waitin
+
+	rcall	blockread4
+	rcall	blockread4
+	rcall	blockread4
+	rcall	blockread4
+
+	rcall	blockread4
+	rcall	blockread4
+	rcall	blockread4
+	rcall	blockread4
+
+	rcall	sendin
+	rcall	waitout
+	ret
+
+blockread4:
+	ld	r0,Z+
+	sts	UEDATX,r0
+	
+	ld	r0,Z+
+	sts	UEDATX,r0
+
+	ld	r0,Z+
+	sts	UEDATX,r0
+
+	ld	r0,Z+
+	sts	UEDATX,r0
+	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; SET_CONFIGURATION
@@ -541,6 +577,8 @@ icinit:
 	sts	TIFR1,r26
 	ldi	r16,0b00100001
 	sts	TIMSK1,r16
+
+	clr	r20
 	ret
 
 Iicp:
