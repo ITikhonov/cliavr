@@ -88,6 +88,48 @@ Ireset:	rjmp	start
 	reti
 	reti
 	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	rjmp	Iicp
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	rjmp	Iover
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
+	reti
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data
@@ -142,6 +184,8 @@ clc16mhz:
 	sts     CLKPR,r16
 	clr     r0
 	sts     CLKPR,r0
+
+	call	icinit
 
 usbpad:
 	ldi     r16,0x01
@@ -288,6 +332,8 @@ pktsetup:
 	breq	Usetbits_
 	cpi	r16,0xf3
 	breq	Uclrbits_
+	cpi	r16,0xf4
+	breq	Ublockread_
 
 	rcall	stall
 	ret
@@ -300,6 +346,7 @@ Ureadmem_: rjmp Ureadmem
 Uwritemem_: rjmp Uwritemem
 Usetbits_: rjmp Usetbits
 Uclrbits_: rjmp Uclrbits
+Ublockread_: rjmp Ublockread
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -372,6 +419,39 @@ Uclrbits:
 	pop	r0
 	ret
 
+Ublockread:
+	lds	r30,UEDATX	; wValue (lo)
+	lds	r31,UEDATX	; wValue (hi)
+	rcall	setupack
+	rcall	waitin
+
+	rcall	blockread4
+	rcall	blockread4
+	rcall	blockread4
+	rcall	blockread4
+
+	rcall	blockread4
+	rcall	blockread4
+	rcall	blockread4
+	rcall	blockread4
+
+	rcall	sendin
+	rcall	waitout
+	ret
+
+blockread4:
+	ld	r0,Z+
+	sts	UEDATX,r0
+	
+	ld	r0,Z+
+	sts	UEDATX,r0
+
+	ld	r0,Z+
+	sts	UEDATX,r0
+
+	ld	r0,Z+
+	sts	UEDATX,r0
+	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; SET_CONFIGURATION
@@ -490,7 +570,7 @@ Ugetstatus:
 
 Iusbgen:
 	push	r16
-	in      r16, 0x3f
+	in      r16, SREG
 	push	r16
 
 	lds     r16,UDINT
@@ -498,7 +578,7 @@ Iusbgen:
 	rjmp	usbreset
 
 	pop	r16
-	out     0x3f, r16
+	out     SREG, r16
 	pop	r16
 	reti
 
@@ -507,4 +587,90 @@ usbreset:
 	sts	UDINT,r16
 ;	we really reset everything
 	rjmp	go
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Input Capture
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+.equ	TCCR3A,0x90
+.equ	TCCR3B,0x91
+.equ	TCCR3C,0x92
+.equ	ICR3L,0x96
+.equ	ICR3H,0x97
+.equ	TIFR3,0x38
+.equ	TIMSK3,0x71
+
+; use r26:27 (X register) as a pointer to
+; 0x100 - 0x1ff area where input capture will be written
+
+
+icinit:
+	ldi     r16,0b00000000
+	sts     TCCR3A,r16
+	ldi     r16,0b11000001
+	sts     TCCR3B,r16
+	ldi     r16,0b00000000
+	sts     TCCR3C,r16
+
+	ldi	r27,0x1
+	clr	r26
+
+	sts	TIFR3,r26
+	ldi	r16,0b00100001
+	sts	TIMSK3,r16
+
+	ret
+
+Iicp:
+	push	r16
+	in	r16,SREG
+	push	r16
+	push	r17
+
+	lds	r16,ICR3L
+
+	sbic	0x6,7	; store pin 7 of port c into lowest bit of lowest byte
+	sbr	r16,0
+	sbis	0x6,7
+	cbr	r16,0
+
+	st	X,r16
+	inc	r26
+	lds	r16,ICR3H
+	st	X,r16
+	inc	r26
+
+	lds	r16,TCCR3B
+	ldi     r17,0b01000000
+	eor	r16,r17
+	sts	TCCR3B,r16
+
+	clr	r16
+	sts	TIFR3,r16
+
+	pop	r17
+	pop	r16
+	out	SREG,r16
+	pop	r16
+	reti
+
+
+Iover:
+	push	r16
+	in	r16,SREG
+	push	r16
+
+	clr	r16
+	sbic	0x6,7	; store pin 7 of port c into lowest bit of lowest byte
+	inc	r16
+	st	X,r16
+	inc	r26
+
+	clr	r16
+	st	X,r16
+	inc	r26
+	pop	r16
+	out	SREG,r16
+	pop	r16
+	reti
 

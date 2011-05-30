@@ -9,3 +9,4 @@ int teensy_readmem(uint16_t addr);
 int teensy_setbits(uint16_t addr, uint8_t v);
 int teensy_clrbits(uint16_t addr, uint8_t v);
 
+int teensy_readblock(uint16_t addr, char buf[32]);

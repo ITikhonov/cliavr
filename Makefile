@@ -18,8 +18,10 @@ cliavr: cliavr.o
 upload: cliavr.hex
 	../emu/teensy-usb/teensy_loader_cli/teensy_loader_cli -mmcu=atmega32u4 cliavr.hex
 
-libcliavr.so: libcliavr.c
+libcliavr.o: libcliavr.c
 	gcc -c -fPIC libcliavr.c -o libcliavr.o
+
+libcliavr.so: libcliavr.o
 	gcc -shared -Wl,-soname,libcliavr.so -o libcliavr.so libcliavr.o -lusb
 
 

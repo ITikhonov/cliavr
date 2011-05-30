@@ -114,3 +114,13 @@ int teensy_readmem(uint16_t addr)
 	return buf;
 }
 
+int teensy_readblock(uint16_t addr, char buf[32])
+{
+	int r;
+
+	if (!libusb_teensy_handle) return 0;
+	r = usb_control_msg(libusb_teensy_handle, 0b11000001, 0xf4, addr, 0, buf, 32, 1000);
+	if (r < 0) return -1;
+	return 32;
+}
+
