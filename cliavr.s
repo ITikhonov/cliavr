@@ -76,6 +76,7 @@ Ireset:	rjmp	start
 	reti
 	reti
 	reti
+	rjmp Iicp
 	reti
 	reti
 	reti
@@ -83,11 +84,11 @@ Ireset:	rjmp	start
 	reti
 	reti
 	reti
+	rjmp Iover
 	reti
 	reti
 	reti
-	reti
-	reti
+
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Data
@@ -142,6 +143,8 @@ clc16mhz:
 	sts     CLKPR,r16
 	clr     r0
 	sts     CLKPR,r0
+
+	call	icinit
 
 usbpad:
 	ldi     r16,0x01
@@ -507,4 +510,62 @@ usbreset:
 	sts	UDINT,r16
 ;	we really reset everything
 	rjmp	go
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Input Capture
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+.equ	TCCR1A,0x80
+.equ	TCCR1B,0x81
+.equ	TCCR1C,0x82
+.equ	ICR1L,0x86
+.equ	ICR1H,0x87
+.equ	TIFR1,0x36
+.equ	TIMSK1,0x6f
+
+; use r26:27 (X register) as a pointer to
+; 0x100 - 0x1ff area where input capture will be written
+
+
+icinit:
+	ldi     r16,0b00000000
+	sts     TCCR1A,r16
+	ldi     r16,0b11000001
+	sts     TCCR1B,r16
+	ldi     r16,0b00000000
+	sts     TCCR1C,r16
+
+	ldi	r27,0x1
+	clr	r26
+
+	sts	TIFR1,r26
+	ldi	r16,0b00100001
+	sts	TIMSK1,r16
+	ret
+
+Iicp:
+	push	r16
+
+	lds	r16,ICR1L
+	st	X,r16
+	inc	r26
+	lds	r16,ICR1H
+	st	X,r16
+	inc	r26
+
+	clr	r16
+	sts	TIFR1,r16
+
+	pop	r16
+	reti
+
+Iover:
+	push	r16
+	clr	r16
+	st	X,r16
+	inc	r26
+	st	X,r16
+	inc	r26
+	pop	r16
+	reti
 
